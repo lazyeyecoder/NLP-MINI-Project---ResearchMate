@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}Upload a Paper | ResearchMate{% endblock %}
+{% block page_heading %}Turn a research paper into a clear brief{% endblock %}
+{% block page_subtitle %}Upload a PDF and ResearchMate will extract the paper structure, research insights, evidence, and extractive summaries locally on your machine.{% endblock %}
+{% block content %}
+<section class="hero-grid">
+    <div class="card upload-card">
+        <div class="section-kicker"><span class="status-dot"></span> Ready for analysis</div>
+        <h2>Start with your PDF</h2>
+        <p class="muted">Text-based academic PDFs work best. No file leaves this local application.</p>
+        <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+            <label class="dropzone" for="paper">
+                <span class="upload-icon">↑</span>
+                <strong>Choose a research paper</strong>
+                <span class="dropzone-hint">Drag and drop or click to browse</span>
+                <span class="file-name" id="file-name">PDF only · maximum 16 MB</span>
+                <input id="paper" name="paper" type="file" accept=".pdf,application/pdf" required>
+            </label>
+            <button class="primary-button" type="submit">Analyze paper <span>→</span></button>
+        </form>
+    </div>
+    <aside class="card workflow-card">
+        <p class="eyebrow">What you get</p>
+        <h3>One workflow, three layers</h3>
+        <ol class="workflow-list">
+            <li><span>01</span><div><strong>Paper structure</strong><small>Pages, sections, and hierarchy</small></div></li>
+            <li><span>02</span><div><strong>Research insights</strong><small>Methods, data, models, and results</small></div></li>
+            <li><span>03</span><div><strong>Extractive summaries</strong><small>Original sentences with page references</small></div></li>
+        </ol>
+    </aside>
+</section>
+<section class="trust-row">
+    <span>✓ PyMuPDF extraction</span>
+    <span>✓ Explainable NLP</span>
+    <span>✓ No external APIs</span>
+    <span>✓ Local processing</span>
+</section>
+<script>
+    const paperInput = document.getElementById("paper");
+    const fileName = document.getElementById("file-name");
+    paperInput.addEventListener("change", () => {
+        fileName.textContent = paperInput.files.length ? paperInput.files[0].name : "PDF only · maximum 16 MB";
+    });
+</script>
+{% endblock %}

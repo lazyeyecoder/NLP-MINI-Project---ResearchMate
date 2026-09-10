@@ -1,0 +1,197 @@
+{% extends "base.html" %}
+{% block title %}Analysis Results | ResearchMate{% endblock %}
+{% block page_heading %}Your paper, organized{% endblock %}
+{% block page_subtitle %}Review the extracted evidence first, then explore the generated extractive summaries. Every available item keeps its page reference and confidence signal.{% endblock %}
+{% block content %}
+{% macro expandable(text, threshold=420) -%}
+    {% set content = text|string %}
+    <div class="expandable-text">
+        <span class="text-preview">{{ content[:threshold] }}{% if content|length > threshold %}…{% endif %}</span>
+        {% if content|length > threshold %}
+            <span class="text-full" hidden>{{ content }}</span>
+            <button class="read-more" type="button" aria-expanded="false">Read more</button>
+        {% endif %}
+    </div>
+{%- endmacro %}
+<section class="result-hero card">
+    <div class="result-heading">
+        <div>
+            <div class="section-kicker"><span class="success-icon">✓</span> Analysis complete</div>
+            <h2>{{ filename }}</h2>
+            <p class="muted">Local PDF processing finished successfully.</p>
+        </div>
+        <a class="secondary-button" href="{{ url_for('index') }}">Analyze another</a>
+    </div>
+    <div class="stats">
+        <span><strong>{{ page_count }}</strong><small>Pages</small></span>
+        <span><strong>{{ text_length }}</strong><small>Extracted characters</small></span>
+        <span><strong>{{ sections|length }}</strong><small>Detected sections</small></span>
+        <span><strong>{% if processed %}Ready{% else %}Unavailable{% endif %}</strong><small>Preprocessing</small></span>
+    </div>
+</section>
+
+{% if extraction_status == "scanned" %}
+    <div class="alert error"><strong>Text extraction unavailable.</strong> This PDF appears to be scanned or image-only. OCR is not currently supported.</div>
+{% else %}
+    <section class="dashboard-section">
+        <div class="section-heading">
+            <div><p class="eyebrow">Paper profile</p><h2>Extracted metadata</h2></div>
+            <span class="section-caption">Evidence from the uploaded document</span>
+        </div>
+        <div class="metadata-grid">
+            {% for label, key in [("Paper title", "title"), ("Authors", "authors"), ("Publication year", "publication_year"), ("Abstract", "abstract"), ("Keywords", "keywords")] %}
+            {% set metadata_item = metadata[key] %}
+            <article class="metadata-card {% if not metadata_item %}is-unavailable{% endif %}">
+                <span class="card-label">{{ label }}</span>
+                {% if metadata_item %}
+                    {% if key == "keywords" %}
+                        <div class="keyword-list">
+                            {% for keyword in metadata_item.value %}
+                                <span class="keyword-chip">{{ keyword.rstrip(".,;") }}</span>
+                            {% endfor %}
+                        </div>
+                    {% elif key == "authors" %}
+                        <div class="author-list">
+                            {% for author in metadata_item.value %}
+                                <span class="author-chip">{{ author }}</span>
+                            {% endfor %}
+                        </div>
+                    {% else %}
+                        <div class="metadata-value">{{ expandable(metadata_item.value, 420) }}</div>
+                    {% endif %}
+                    <small>Page {{ metadata_item.page_number }} <span>·</span> Confidence {{ metadata_item.confidence }}</small>
+                {% else %}
+                    <p class="muted">Unavailable</p>
+                {% endif %}
+            </article>
+            {% endfor %}
+        </div>
+        <p class="helper-text">Metadata fields are shown explicitly so unavailable information is never inferred or fabricated.</p>
+    </section>
+
+    <section class="dashboard-section">
+        <div class="section-heading">
+            <div><p class="eyebrow">Evidence layer</p><h2>Extracted research information</h2></div>
+            <span class="legend"><span class="legend-dot"></span> Source-backed insight</span>
+        </div>
+        {% if insights %}
+        <div class="insight-grid">
+            {% for group, fields in [
+                ("Research Overview", [("Research Problem", "research_problem"), ("Research Objective", "research_objective")]),
+                ("Methodology", [("Methodology", "methodology"), ("Experimental Setup", "experimental_setup")]),
+                ("Data & Models", [("Datasets", "datasets"), ("Data Sources / Sensors", "data_sources"), ("Models / Algorithms / Techniques", "models_algorithms")]),
+                ("Results", [("Results / Metrics", "results_metrics")]),
+                ("Research Scope", [("Limitations", "limitations"), ("Future Work", "future_work")])
+            ] %}
+                <article class="insight-group">
+                    <div class="group-heading"><p class="eyebrow">{{ group }}</p></div>
+                    {% for label, key in fields %}
+                        <div class="insight">
+                            <strong>{{ label }}</strong>
+                            {% set value = insights[key] %}
+                            {% if value is none or (value is iterable and value is not mapping and value|length == 0) %}
+                                <p class="muted empty-state">Unavailable from the paper.</p>
+                            {% elif value is string %}
+                                <div class="insight-value">{{ expandable(value, 420) }}</div>
+                            {% elif value is iterable and value is not mapping %}
+                                {% for item in value %}
+                                    <div class="evidence-item">
+                                        {% if item.value is string %}
+                                            <div class="insight-value">{{ expandable(item.value, 360) }}</div>
+                                        {% else %}
+                                            <p><strong>{{ item.value.metric }}</strong>{% if item.value.value %} — {{ item.value.value }}{% endif %}</p>
+                                        {% endif %}
+                                        <small>Pages {{ item.page_numbers|join(", ") }} <span>·</span> Confidence {{ item.confidence }}</small>
+                                    </div>
+                                {% endfor %}
+                            {% else %}
+                                <div class="insight-value">{{ expandable(value.value, 420) }}</div>
+                                <small>Pages {{ value.page_numbers|join(", ") }} <span>·</span> Confidence {{ value.confidence }}</small>
+                            {% endif %}
+                        </div>
+                    {% endfor %}
+                </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="dashboard-section summary-section">
+        <div class="section-heading">
+            <div><p class="eyebrow">Generated extractive summaries</p><h2>Research Summary</h2></div>
+            <span class="legend"><span class="legend-dot summary-dot"></span> Original paper sentences</span>
+        </div>
+        <p class="section-intro">These summaries select sentences from the paper; no new claims or generated prose are added.</p>
+        {% if summaries %}
+        <div class="summary-grid">
+            {% for key, label in [("executive", "Executive Summary"), ("abstract", "Abstract Summary"), ("methodology", "Methodology Summary"), ("results", "Results Summary"), ("conclusion", "Conclusion Summary")] %}
+                {% set summary = summaries[key] %}
+                <article class="summary-card">
+                    <div class="summary-card-heading"><strong>{{ label }}</strong><span class="summary-badge">Extractive</span></div>
+                    {% if summary.available %}
+                        {% for sentence in summary.sentences %}
+                            <div class="summary-sentence">
+                                <p>{{ sentence.text }}</p>
+                                <small>Page {{ sentence.page_number }} <span>·</span> Score {{ sentence.score }}</small>
+                            </div>
+                        {% endfor %}
+                    {% else %}
+                        <div class="empty-panel"><span>—</span><p>{{ summary.message }}</p></div>
+                    {% endif %}
+                </article>
+            {% endfor %}
+        </div>
+        {% endif %}
+    </section>
+
+    <section class="dashboard-section">
+        <div class="section-heading">
+            <div><p class="eyebrow">Navigation layer</p><h2>Detected paper sections</h2></div>
+            <span class="section-caption">Open a section to inspect its source text</span>
+        </div>
+        <div class="sections">
+        {% for section in sections %}
+            <details class="section-item">
+                <summary>
+                    <span><strong>{{ section.title }}</strong> <small>{{ section.original_heading }}</small></span>
+                    <span class="section-meta">Pages {{ section.page_start }}–{{ section.page_end }} · {{ section.confidence }}</span>
+                </summary>
+                <pre class="section-text">{{ section.text }}</pre>
+                {% if section.subsections %}
+                    <div class="subsections">
+                        <strong>Subsections</strong>
+                        {% for subsection in section.subsections %}
+                            <details class="subsection-item">
+                                <summary>{{ subsection.title }} — {{ subsection.original_heading }} · pages {{ subsection.page_start }}–{{ subsection.page_end }} · {{ subsection.confidence }}</summary>
+                                <pre class="section-text">{{ subsection.text }}</pre>
+                            </details>
+                        {% endfor %}
+                    </div>
+                {% endif %}
+            </details>
+        {% else %}
+            <p class="muted empty-panel">No confident academic sections were detected.</p>
+        {% endfor %}
+        </div>
+    </section>
+
+    <details class="source-preview">
+        <summary>View processed text preview</summary>
+        <pre class="paper-text">{{ text }}</pre>
+    </details>
+{% endif %}
+<script>
+    document.querySelectorAll(".read-more").forEach((button) => {
+        button.addEventListener("click", () => {
+            const container = button.closest(".expandable-text");
+            const preview = container.querySelector(".text-preview");
+            const full = container.querySelector(".text-full");
+            const expanded = button.getAttribute("aria-expanded") === "true";
+            preview.hidden = !expanded;
+            full.hidden = expanded;
+            button.setAttribute("aria-expanded", String(!expanded));
+            button.textContent = expanded ? "Read more" : "Show less";
+        });
+    });
+</script>
+{% endblock %}
